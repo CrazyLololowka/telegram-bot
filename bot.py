@@ -161,15 +161,14 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("3 hours", callback_data="d_0.125"),
                 InlineKeyboardButton("1 days", callback_data="d_1"),
-                InlineKeyboardButton("2 days", callback_data="d_2"),
-                InlineKeyboardButton("4 days", callback_data="d_3"),
-                InlineKeyboardButton("9 day", callback_data="d_9")
+                InlineKeyboardButton("2 days", callback_data="d_2")
             ],
-            [
+            [   InlineKeyboardButton("3 days", callback_data="d_3"),
+                InlineKeyboardButton("9 day", callback_data="d_9"),
                 InlineKeyboardButton("27 days", callback_data="d_27"),
                 InlineKeyboardButton("54 days", callback_data="d_54"),
                 InlineKeyboardButton("81 days", callback_data="d_81"),
-                InlineKeyboardButton("164 days", callback_data="d_164")
+                InlineKeyboardButton("162 days", callback_data="d_162")
             ],
         ])
 
