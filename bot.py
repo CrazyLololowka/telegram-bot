@@ -417,7 +417,7 @@ async def decks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = "*Your decks:*\n\n"
-    for name in rows:
+    for (name,) in rows:
         text += f" `{name}`\n"
 
     await update.message.reply_text(text, parse_mode="Markdown")
