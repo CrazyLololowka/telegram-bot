@@ -11,8 +11,27 @@ TOKEN = os.getenv('API_KEY')
 if not TOKEN:
     raise RuntimeError("API_KEY environment variable not set")
 
-conn = sqlite3.connect("cards.db", check_same_thread=False)
-cur = conn.cursor()
+def get_db():
+    conn = sqlite3.connect("cards.db")
+    return conn, conn.cursor()
+
+conn, cur = get_db()
+
+def get_intervals_by_review_count(reviews: int):
+    schedule = [
+        [("5 hours", 5 / 24)],       
+        [("1 day", 1)],              
+        [("2 days", 2)],            
+        [("3 days", 3)],            
+        [("9 days", 9)],            
+        [("27 days", 27)],          
+        [("54 days", 54)],          
+        [("81 days", 81)],          
+        [("162 days", 162)],          
+    ]
+
+    index = min(reviews, len(schedule) - 1)
+    return schedule[index]        
 
 cur.execute("""
 CREATE TABLE IF NOT EXISTS cards (
@@ -22,7 +41,8 @@ CREATE TABLE IF NOT EXISTS cards (
     front TEXT,
     back TEXT,
     interval INTEGER,
-    next_review DATE
+    next_review DATE,
+    reviews INTEGER DEFAULT 0
 )
 """)
 conn.commit()
@@ -87,7 +107,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         deck = get_current_deck(update.effective_user.id)
 
         cur.execute("""
-            INSERT INTO cards (user_id, deck, front, back, interval, next_review)
+            INSERT INTO cards (user_id, deck, front, back, interval, next_review,  reviews)
             VALUES ( ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -152,24 +172,21 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not card_id:
         await query.edit_message_text("No active card.")
         return
-
+    
     if query.data == "show":
-        cur.execute("SELECT front, back FROM cards WHERE id=?", (card_id,))
-        front, back = cur.fetchone()
+        cur.execute(
+            "SELECT front, back, reviews FROM cards WHERE id=?",
+            (card_id,)
+        )
+        front, back, reviews = cur.fetchone()
+
+        intervals = get_intervals_by_review_count(reviews)
 
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("3 hours", callback_data="d_0.125"),
-                InlineKeyboardButton("1 days", callback_data="d_1"),
-                InlineKeyboardButton("2 days", callback_data="d_2")
-            ],
-            [   InlineKeyboardButton("3 days", callback_data="d_3"),
-                InlineKeyboardButton("9 day", callback_data="d_9"),
-                InlineKeyboardButton("27 days", callback_data="d_27"),
-                InlineKeyboardButton("54 days", callback_data="d_54"),
-                InlineKeyboardButton("81 days", callback_data="d_81"),
-                InlineKeyboardButton("162 days", callback_data="d_162")
-            ],
+                InlineKeyboardButton(label, callback_data=f"d_{days}")
+                for label, days in intervals
+            ]
         ])
 
         await query.edit_message_text(
@@ -185,7 +202,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         next_review = date.today() + timedelta(days=days)
 
         cur.execute(
-            "UPDATE cards SET interval=?, next_review=? WHERE id=?",
+            "UPDATE cards SET interval=?, next_review=?, reviews = reviews + 1  WHERE id=?",
             (days, next_review, card_id)
         )
         conn.commit()
@@ -214,8 +231,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Card deleted.")
 
     elif query.data == "delete_cancel":
-        await query.edit_message_text("Delete canceled."
-        )
+        await query.edit_message_text("Delete canceled.")
 
 
 async def cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -287,28 +303,27 @@ async def review_reminder(context: ContextTypes.DEFAULT_TYPE):
     today = date.today().isoformat()
 
     cur.execute(
-    "SELECT COUNT(*) FROM cards WHERE user_id=? AND next_review<=?",
+    "SELECT deck, COUNT(*) FROM cards WHERE user_id = ? AND next_review <= ? GROUP BY deck",
         (user_id, today)
     )
-    count = cur.fetchone()[0]
+    rows = cur.fetchall()
 
-    if count == 0:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=" No cards to review right now."
-        )
+    if not rows:
         return
+    
+    message = "*Review reminder*\n\n"
 
+    for deck, count in rows:
+        message += f" `{deck}` — *{count}* cards\n"
+
+    message += "Use /review to start."
+        
     await context.bot.send_message(
         chat_id=user_id,
-        text=(
-            " *Review reminder*\n\n"
-            f"You have *{count}* cards to review \n"
-            "Use /review to start."
-        ),
+        text=message,
         parse_mode="Markdown"
     )
-
+       
 
 async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -402,8 +417,8 @@ async def decks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = "*Your decks:*\n\n"
-    for (name,) in rows:
-        text += f"• `{name}`\n"
+    for name in rows:
+        text += f" `{name}`\n"
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
