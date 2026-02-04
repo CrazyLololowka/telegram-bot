@@ -7,12 +7,14 @@ import os
 
 load_dotenv() 
 
+DB_PATH = "/app/cards.db"
+
 TOKEN = os.getenv('API_KEY')
 if not TOKEN:
     raise RuntimeError("API_KEY environment variable not set")
 
 def get_db():
-    conn = sqlite3.connect("/data/cards.db")
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     return conn, conn.cursor()
 
 conn, cur = get_db()
@@ -108,7 +110,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         cur.execute("""
             INSERT INTO cards (user_id, deck, front, back, interval, next_review,  reviews)
-            VALUES ( ?, ?, ?, ?, ?, ?)
+            VALUES ( ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 update.effective_user.id,
@@ -116,7 +118,8 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 front.strip(),
                 back.strip(),
                 1,
-                date.today().isoformat()
+                date.today().isoformat(),
+                0
             )
         )
         conn.commit()
