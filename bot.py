@@ -12,7 +12,7 @@ if not TOKEN:
     raise RuntimeError("API_KEY environment variable not set")
 
 def get_db():
-    conn = sqlite3.connect("cards.db")
+    conn = sqlite3.connect("/data/cards.db")
     return conn, conn.cursor()
 
 conn, cur = get_db()
@@ -422,6 +422,12 @@ async def decks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
+async def export_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_document(
+        document=open("/data/cards.db", "rb"),
+        filename="cards.db"
+    )
+
 def main():
     app = Application.builder().token(TOKEN).build()
 
@@ -435,6 +441,7 @@ def main():
     app.add_handler(CommandHandler("newdeck", newdeck))
     app.add_handler(CommandHandler("deck", deck))
     app.add_handler(CommandHandler("decks", decks))
+    app.add_handler(CommandHandler("exportdb", export_db))
 
     print("Bot running...")
     app.run_polling()
