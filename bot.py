@@ -427,7 +427,7 @@ async def decks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def export_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_document(
-        document=open("/data/cards.db", "rb"),
+        document=open(DB_PATH, "rb"),
         filename="cards.db"
     )
 
