@@ -7,7 +7,7 @@ import os
 
 load_dotenv() 
 
-DB_PATH = "/app/cards.db"
+DB_PATH = "/app/data/cards.db"
 
 TOKEN = os.getenv('API_KEY')
 if not TOKEN:
