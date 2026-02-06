@@ -20,8 +20,7 @@ def get_db():
 conn, cur = get_db()
 
 def get_intervals_by_review_count(reviews: int):
-    schedule = [
-        [("5 hours", 5 / 24)],       
+    schedule = [       
         [("1 day", 1)],              
         [("2 days", 2)],            
         [("3 days", 3)],            
@@ -210,11 +209,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
 
-        if days < 1:
-            hours = int(days * 24)
-            time_text = f"{hours} hour(s)"
-        else:
-            time_text = f"{int(days)} day(s)"
+        time_text = f"{int(days)} day(s)"
 
         await query.edit_message_text(
             f" Scheduled in *{time_text}*\n {next_review}",
