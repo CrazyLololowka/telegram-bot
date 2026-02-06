@@ -6,6 +6,6 @@ COPY . .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-VOLUME ["/data"]
+RUN mkdir -p /data
 
 CMD ["python", "bot.py"]
