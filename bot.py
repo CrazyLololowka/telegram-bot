@@ -268,7 +268,6 @@ async def cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i in range(0, len(message), MAX_LEN):
         await update.message.reply_text(
             message[i:i+MAX_LEN],
-            parse_mode="Markdown"
         )
 
 async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -300,7 +299,7 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def reminder(context: ContextTypes.DEFAULT_TYPE):
+async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.chat_id
     today = date.today().isoformat()
 
