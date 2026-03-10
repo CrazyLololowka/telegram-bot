@@ -95,7 +95,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Delete card:\n"
         "`/delete ID`\n\n"
         "Reminder:\n"
-        "`/reminder Day(s)`\n",
+        "`/reminder`\n",
         parse_mode="Markdown"
     )
 
@@ -263,9 +263,13 @@ async def cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     message += "```"
     
-    await update.message.reply_text(message,parse_mode="Markdown"
-    )
+    MAX_LEN = 4000
 
+    for i in range(0, len(message), MAX_LEN):
+        await update.message.reply_text(
+            message[i:i+MAX_LEN],
+            parse_mode="Markdown"
+        )
 
 async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -296,66 +300,28 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def review_reminder(context: ContextTypes.DEFAULT_TYPE):
+async def reminder(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.chat_id
     today = date.today().isoformat()
 
     cur.execute(
-    "SELECT deck, COUNT(*) FROM cards WHERE user_id = ? AND next_review <= ? GROUP BY deck",
+         "SELECT deck, COUNT(*) FROM cards WHERE user_id=? AND next_review<=? GROUP BY deck",
         (user_id, today)
     )
+
     rows = cur.fetchall()
 
     if not rows:
         return
-    
-    message = "*Review reminder*\n\n"
+
+    message = "Cards to review:\n\n"
 
     for deck, count in rows:
-        message += f" `{deck}` — *{count}* cards\n"
+        message += f"{deck}: {count}\n"
 
-    message += "Use /review to start."
-        
     await context.bot.send_message(
         chat_id=user_id,
-        text=message,
-        parse_mode="Markdown"
-    )
-       
-
-async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text(
-            " Usage:\n`/reminder <days>`\n\nExample:\n`/reminder 3`",
-            parse_mode="Markdown"
-        )
-        return
-
-    try:
-        days = int(context.args[0])
-        if days < 1:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_text(" Please enter a valid number of days.")
-        return
-
-    job_name = str(update.effective_chat.id)
-
-    current_jobs = context.application.job_queue.get_jobs_by_name(job_name)
-    for job in current_jobs:
-        job.schedule_removal()
-
-    context.application.job_queue.run_repeating(
-        review_reminder,
-        interval=timedelta(days=days),
-        first=timedelta(seconds=5),
-        chat_id=update.effective_chat.id,
-        name=job_name,
-    )
-
-    await update.message.reply_text(
-        f" Reminder updated!\n\nI will remind you every *{days}* day(s).",
-        parse_mode="Markdown"
+        text=message
     )
 
 async def newdeck(update: Update, context: ContextTypes.DEFAULT_TYPE):
