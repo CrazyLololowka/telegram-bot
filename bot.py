@@ -299,7 +299,7 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def reminder(context: ContextTypes.DEFAULT_TYPE):
+async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.chat_id
     today = date.today().isoformat()
 
