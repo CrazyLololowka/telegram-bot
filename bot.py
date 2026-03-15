@@ -300,7 +300,7 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = context.job.user_id
+    user_id = update.effective_user.id
     today = date.today().isoformat()
 
     cur.execute("""
