@@ -300,7 +300,7 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = context.job.chat_id
+    user_id = context.job.user_id
     today = date.today().isoformat()
 
     cur.execute("""
@@ -313,18 +313,15 @@ async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = cur.fetchall()
 
     if not rows:
-        await context.bot.send_message("No cards to review today")
+        await update.message.reply_text("No cards to review today")
         return
 
-    message = " Cards to review:\n\n"
+    message = "Cards to review:\n\n"
 
     for deck, count in rows:
         message += f"{deck}: {count}\n"
 
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=message
-    )
+    await update.message.reply_text(message)
 
 async def newdeck(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
