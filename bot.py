@@ -299,7 +299,7 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def review_reminder(context: ContextTypes.DEFAULT_TYPE):
+async def reminder(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.chat_id
     today = date.today().isoformat()
 
@@ -313,6 +313,7 @@ async def review_reminder(context: ContextTypes.DEFAULT_TYPE):
     rows = cur.fetchall()
 
     if not rows:
+        await context.bot.send_message("No cards to review today")
         return
 
     message = " Cards to review:\n\n"
@@ -323,37 +324,6 @@ async def review_reminder(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=user_id,
         text=message
-    )
-    
-async def reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if not context.args:
-        await update.message.reply_text("Usage: /reminder <days>")
-        return
-
-    try:
-        days = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("Please enter a valid number.")
-        return
-
-    job_name = str(update.effective_chat.id)
-
-    current_jobs = context.application.job_queue.get_jobs_by_name(job_name)
-
-    for job in current_jobs:
-        job.schedule_removal()
-
-    context.application.job_queue.run_repeating(
-        review_reminder,
-        interval=timedelta(days=days),
-        first=timedelta(seconds=5),
-        chat_id=update.effective_chat.id,
-        name=job_name,
-    )
-
-    await update.message.reply_text(
-        f"Reminder set every {days} day(s)."
     )
 
 async def newdeck(update: Update, context: ContextTypes.DEFAULT_TYPE):
