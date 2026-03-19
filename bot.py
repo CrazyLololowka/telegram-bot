@@ -217,8 +217,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_text(
             f"*Question*\n{front}\n\n"
-            f"*Answer*\n{back}\n\n"
-            "*When should I show it again?*",
+            f"*Answer*\n{back}\n\n",
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
@@ -432,11 +431,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     card_id = context.user_data.get("card_id")
 
-    cur.execute("SELECT back, reviews FROM cards WHERE id=?", (card_id,))
-    row = cur.fetchone()
-    correct, reviews = row
+    cur.execute("SELECT front, back, reviews FROM cards WHERE id=?", (card_id,))
+    front, back, reviews = cur.fetchone()
 
-    # создаем кнопки с интервалами
     intervals = get_intervals_by_review_count(reviews)
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(label, callback_data=f"d_{days}") for label, days in intervals]
@@ -444,12 +441,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"You wrote:\n{user_text}\n\n"
-        f"Correct:\n{correct}\n\n"
-        "When should I show it again?",
+        f"Original:\n{front}\n\n"
+        f"Translation:\n{back}\n\n",
         reply_markup=keyboard
     )
 
-    # отключаем режим ожидания, чтобы не ловить следующий текст как ответ
     context.user_data["mode"] = None
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
