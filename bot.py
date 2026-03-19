@@ -2,12 +2,12 @@ import sqlite3
 from dotenv import load_dotenv
 from datetime import date, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CommandHandler, Application, CallbackQueryHandler, ContextTypes
+from telegram.ext import CommandHandler, Application, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 import os
 
 load_dotenv() 
 
-DB_PATH = "/data/cards.db"
+DB_PATH = "cards.db"
 
 TOKEN = os.getenv('API_KEY')
 if not TOKEN:
@@ -41,9 +41,11 @@ CREATE TABLE IF NOT EXISTS cards (
     deck TEXT,
     front TEXT,
     back TEXT,
+    audio TEXT DEFAULT NULL,
     interval INTEGER,
     next_review DATE,
     reviews INTEGER DEFAULT 0
+
 )
 """)
 conn.commit()
@@ -103,25 +105,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         text = update.message.text.replace("/add", "", 1).strip()
-        front, back = text.split("|", 1)
+        parts = text.split("|")
+
+        if len(parts) < 2:
+            raise ValueError
+
+        front = parts[0].strip()
+        back = parts[1].strip()
+        audio = context.user_data.get("last_audio")
 
         deck = get_current_deck(update.effective_user.id)
 
         cur.execute("""
-            INSERT INTO cards (user_id, deck, front, back, interval, next_review,  reviews)
-            VALUES ( ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO cards (user_id, deck, front, back, audio, interval, next_review,  reviews)
+            VALUES ( ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 update.effective_user.id,
                 deck,
                 front.strip(),
                 back.strip(),
+                audio,
                 1,
                 date.today().isoformat(),
                 0
             )
         )
         conn.commit()
+
+        context.user_data["last_audio"] = None 
 
         await update.message.reply_text(
             f" Card added to deck `{deck}`",
@@ -139,8 +151,8 @@ async def review(update: Update, context: ContextTypes.DEFAULT_TYPE):
     deck = get_current_deck(update.effective_user.id)
     today = date.today().isoformat()
     cur.execute(
-    "SELECT id, front FROM cards WHERE user_id=? AND deck=? AND next_review<=?",
-    (update.effective_user.id, deck, today)
+        "SELECT id, front, audio FROM cards WHERE user_id=? AND deck=? AND next_review<=?",
+        (update.effective_user.id, deck, today)
     )
     card = cur.fetchone()
 
@@ -151,18 +163,30 @@ async def review(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    card_id, front = card
+    card_id, front, audio = card
     context.user_data["card_id"] = card_id
+    context.user_data["mode"] = "audio" if audio else None
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Show answer", callback_data="show")]
-    ])
+    if audio:
+        keyboard = None
+        
+        await update.message.reply_audio(
+            audio=audio,
+            caption="Listen and type what you hear, then send your answer as a message.",
+            reply_markup=keyboard
+        )
+        context.user_data["mode"] = "audio"
+    else:
 
-    await update.message.reply_text(
-        f" *Question*\n\n{front}",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Show answer", callback_data="show")]
+        ])
+
+        await update.message.reply_text(
+            f" *Question*\n\n{front}",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
 
 
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -230,6 +254,16 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "delete_cancel":
         await query.edit_message_text("Delete canceled.")
+    elif query.data == "repeat":
+        card_id = context.user_data.get("card_id")
+
+        cur.execute("SELECT audio FROM cards WHERE id=?", (card_id,))
+        audio = cur.fetchone()[0]
+
+        if audio:
+            await query.message.reply_audio(audio=audio)
+        else:
+            await query.answer("No audio")
 
 
 async def cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -391,6 +425,47 @@ async def export_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filename="cards.db"
     )
 
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("mode") != "audio":
+        return
+
+    user_text = update.message.text
+    card_id = context.user_data.get("card_id")
+
+    cur.execute("SELECT back, reviews FROM cards WHERE id=?", (card_id,))
+    row = cur.fetchone()
+    correct, reviews = row
+
+    # создаем кнопки с интервалами
+    intervals = get_intervals_by_review_count(reviews)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(label, callback_data=f"d_{days}") for label, days in intervals]
+    ])
+
+    await update.message.reply_text(
+        f"You wrote:\n{user_text}\n\n"
+        f"Correct:\n{correct}\n\n"
+        "When should I show it again?",
+        reply_markup=keyboard
+    )
+
+    # отключаем режим ожидания, чтобы не ловить следующий текст как ответ
+    context.user_data["mode"] = None
+
+async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    audio = update.message.audio
+
+    if not audio:
+        return
+
+    file_id = audio.file_id
+
+    context.user_data["last_audio"] = file_id
+
+    await update.message.reply_text(
+        "Audio received. Now send:\n/add Question | Answer"
+    )
+
 def main():
     app = Application.builder().token(TOKEN).build()
 
@@ -405,6 +480,8 @@ def main():
     app.add_handler(CommandHandler("deck", deck))
     app.add_handler(CommandHandler("decks", decks))
     app.add_handler(CommandHandler("exportdb", export_db))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 
     print("Bot running...")
     app.run_polling()
