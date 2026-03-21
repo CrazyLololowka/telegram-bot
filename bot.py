@@ -21,14 +21,10 @@ conn, cur = get_db()
 
 def get_intervals_by_review_count(reviews: int):
     schedule = [       
-        [("1 day", 1)],              
-        [("2 days", 2)],            
-        [("3 days", 3)],            
+        [("3 day", 3)],              
         [("9 days", 9)],            
-        [("27 days", 27)],          
-        [("54 days", 54)],          
-        [("81 days", 81)],          
-        [("162 days", 162)],          
+        [("27 days", 27)],            
+        [("54 days", 54)],                                              
     ]
 
     index = min(reviews, len(schedule) - 1)
